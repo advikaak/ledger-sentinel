@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ledger Sentinel</title>
+  <meta name="description" content="An AI agent that screens supplier invoices for fraud before they're paid, and shows the exact reasoning behind every decision.">
+  <meta property="og:title" content="Ledger Sentinel">
+  <meta property="og:description" content="An AI agent that screens supplier invoices for fraud before they're paid, and shows the exact reasoning behind every decision.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Ledger Sentinel
+    </a>
+    <nav class="topnav" aria-label="Sections">
+      <a class="keep" href="#queue">Queue</a>
+      <a href="#results">Results</a>
+      <a href="#fairness">Fairness</a>
+      <a href="#method">Method</a>
+      <a class="keep" data-repo="" hidden>Code</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="wrap hero">
+    <p class="eyebrow">Accounts-payable fraud detection · data science project</p>
+    <h1>Catch the invoices that shouldn't be paid, and show why.</h1>
+    <p class="lede">Ledger Sentinel is an AI agent that screens a company's supplier payment run for duplicate payments, vendor impersonation and phantom vendors. It holds the risky invoices and lays out, for every decision, the exact rules it applied and the records behind them.</p>
+    <div class="kpis" id="kpis"></div>
+    <p class="note">All data is synthetic: a simulated two-year ledger of <span data-fact="ledgerInvoices"></span> invoices with planted fraud, so every decision can be checked against the truth. Results are from the held-out test period, the last <span data-fact="testInvoices"></span> invoices, which the models never saw.</p>
+  </section>
+
+  <section class="wrap section" id="queue">
+    <h2>The payment queue</h2>
+    <p class="section-lede">Every invoice in the test period, highest risk first. Open one to see the decision, the rule chain the model followed, and the records it rests on. Invoices scoring <span data-fact="escalate"></span> or more are escalated and blocked; from <span data-fact="release"></span> they're held for an analyst; below that they're paid.</p>
+
+    <div class="queue-layout">
+      <div>
+        <p class="row-label">Start with one of these:</p>
+        <div class="showcase" id="showcase"></div>
+        <div class="controls">
+          <div id="chips" role="group" aria-label="Filter by decision"></div>
+          <input class="search" id="search" type="search" placeholder="Search invoice or vendor" aria-label="Search invoice or vendor">
+        </div>
+        <div class="table-wrap" id="queue-wrap">
+          <table class="queue">
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th class="hide-sm">Vendor</th>
+                <th class="right hide-sm">Amount</th>
+                <th>Risk</th>
+                <th>Decision</th>
+                <th class="hide-sm">Actual</th>
+              </tr>
+            </thead>
+            <tbody id="queue-body"></tbody>
+          </table>
+        </div>
+        <p class="caption" id="queue-caption"></p>
+      </div>
+      <aside class="case" id="case" aria-live="polite" aria-label="Selected invoice"></aside>
+    </div>
+  </section>
+
+  <section class="wrap section" id="why">
+    <h2>Why the obvious rule fails</h2>
+    <div class="prose" style="margin-top:12px">
+      <p>The first rule anyone writes is "flag an invoice that looks almost identical to one we already paid." But honest suppliers send near-identical invoices every billing cycle: <strong><span data-fact="legitAbove"></span> of legitimate invoices</strong> are more than 95% text-identical to an earlier one. That rule catches <span data-fact="rule"></span> of the fraud.</p>
+      <p>The signal is timing. A duplicate arrives too early for that vendor's usual billing rhythm, while routine invoices arrive on schedule.</p>
+    </div>
+    <div class="figure">
+      <div class="figure-title">Text similarity can't separate fraud from routine billing; arrival timing catches much of it</div>
+      <div class="figure-sub">Share of invoices in each class, across the whole ledger.</div>
+      <div id="legend-hist"></div>
+      <div class="chart-grid">
+        <div><div class="chart" id="chart-sim"></div></div>
+        <div><div class="chart" id="chart-cad"></div></div>
+      </div>
+      <p class="chart-label">The spike at exactly 1× on the right is vendors with too little history to have a rhythm yet, including every phantom vendor. Those are caught by other signals: vendor age, round amounts, missing purchase orders.</p>
+    </div>
+  </section>
+
+  <section class="wrap section" id="results">
+    <h2>Results</h2>
+    <p class="section-lede">Four models trained on the same features and the same labels, tuned on a validation period, then scored once on the test period (<span data-fact="testInvoices"></span> invoices, <span data-fact="testFraud"></span> fraudulent).</p>
+
+    <div class="table-wrap static data-table"><table id="models-table"></table></div>
+
+    <div class="figure">
+      <div class="figure-title">Every model beats the keyword rule; the forest ranks invoices best</div>
+      <div class="figure-sub">Precision–recall on the test period. AP is average precision: the area under each curve.</div>
+      <div id="legend-pr"></div>
+      <div class="chart" id="chart-pr"></div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <h3>Why ship the tree when the forest scores higher?</h3>
+        <div class="prose" style="margin-top:10px">
+          <p>Holding a supplier's payment has to be justified to that supplier and to an auditor. The decision tree gives at most <span data-fact="depth"></span> readable conditions for every decision; the forest averages 300 trees and can't show its work.</p>
+          <p>The forest's lead is real, not noise: across 2,000 paired bootstrap resamples of the test period, its F1 is higher <span data-fact="f1Share"></span> of the time (difference <span data-fact="f1Gap"></span>, 95% interval <span data-fact="f1GapLo"></span> to <span data-fact="f1GapHi"></span>). Shipping the tree is a trade-off made on purpose.</p>
+        </div>
+        <div class="table-wrap static data-table"><table id="uncertainty-table"></table></div>
+      </div>
+      <div>
+        <h3>What the agent does to the queue</h3>
+        <div class="prose" style="margin-top:10px">
+          <p>Analysts review <span data-fact="reviewed"></span> of the queue, and that slice holds <span data-fact="dollars"></span> of the fraudulent dollars. The hold band caught <span data-fact="holdFraud"></span> fraudulent invoices in this period. Its thresholds were set by policy rather than fitted, so they should be re-tuned the same way the model was.</p>
+        </div>
+        <div class="table-wrap static data-table"><table id="routing-table"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap section" id="fairness">
+    <h2>Fairness audit</h2>
+    <p class="section-lede">Models learn from what past investigators <strong>wrote down</strong>, not from ground truth. In this ledger one region spent years under an enhanced-scrutiny policy, so <span data-fact="mislabelled"></span> of its clean invoices carry a fraud label they never earned. Two otherwise identical models were trained on those labels; one could also see the vendor's region.</p>
+
+    <div class="figure">
+      <div class="figure-title">Letting the model see region makes it flag <span data-fact="naiveRate"></span> of clean invoices from <span data-fact="region"></span></div>
+      <div class="figure-sub">False-alarm rate on truly clean invoices, by vendor region, with 95% intervals.</div>
+      <div id="legend-fair"></div>
+      <div class="chart" id="chart-fair"></div>
+      <details class="data"><summary>Show the numbers</summary><div class="table-wrap static"><table id="fairness-table"></table></div></details>
+    </div>
+
+    <ul class="findings">
+      <li><strong>Given the region, the model learned the bias as if it were a pattern.</strong>It flags <span data-fact="naiveRate"></span> of clean invoices from <span data-fact="region"></span>, and its overall precision drops.</li>
+      <li><strong>Removing the column reduced the disparity but did not remove it.</strong>Clean invoices from <span data-fact="region"></span> are still flagged <span data-fact="treeRate"></span> of the time; the low end of that interval (<span data-fact="treeLo"></span>) sits above the high end of every other region's (at most <span data-fact="otherHi"></span>). The bias lives in the labels, so dropping a sensitive column is a first step, not a fix.</li>
+    </ul>
+    <p class="note">The mislabelling rate is a setting of the simulation, not a finding. The pattern holds at every level tested, from 10% to 28%.</p>
+  </section>
+
+  <section class="wrap section" id="drivers">
+    <h2>What drives the decisions</h2>
+    <p class="section-lede">Permutation importance on the test period: shuffle one feature and measure how much average precision drops. All three models lean hardest on arrival timing; past that, they disagree. Importance describes how a model used the data, not what causes fraud.</p>
+    <div class="figure">
+      <div class="figure-title">All three models lean on arrival timing; beyond it, they disagree</div>
+      <div class="figure-sub">Drop in average precision when one feature is shuffled (30 repeats).</div>
+      <div id="legend-imp"></div>
+      <div class="chart" id="chart-imp"></div>
+    </div>
+  </section>
+
+  <section class="wrap section" id="method">
+    <h2>How it works</h2>
+    <div class="loop">
+      <div><i>1</i><b>Perceive</b><span>Pull the invoice and the vendor's history: earlier invoices, bank-detail changes, purchase orders.</span></div>
+      <div><i>2</i><b>Decide</b><span>Score it with an interpretable decision tree and recover the exact rule chain it followed.</span></div>
+      <div><i>3</i><b>Act</b><span>Release it into the payment run, hold it for an analyst, or escalate and block payment.</span></div>
+      <div><i>4</i><b>Explain</b><span>In the full pipeline, Claude turns the rule chain and records into an analyst's case note. It is never asked whether an invoice is fraud.</span></div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <h3>Method</h3>
+        <ul class="list">
+          <li><strong>Point-in-time features.</strong> Every feature is computed only from records that existed before the invoice arrived, and a test proves no future data leaks in.</li>
+          <li><strong>Split by time.</strong> Train, validation and test are consecutive periods; the test period was opened once, at the end.</li>
+          <li><strong>Cost-weighted tuning.</strong> A missed fraud is weighted <span data-fact="costRatio"></span> times a false alarm.</li>
+          <li><strong>Honest uncertainty.</strong> Paired-bootstrap intervals for model metrics and Wilson intervals for per-region rates.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Limitations</h3>
+        <ul class="list">
+          <li><strong>Synthetic data.</strong> Results show the method recovers planted patterns, not real-world accuracy.</li>
+          <li><strong>Inflated fraud rate</strong> (about 5%, far above real ledgers) and a small test set of <span data-fact="testFraud"></span> fraud cases.</li>
+          <li><strong>No adversary.</strong> A fraudster who knew the model watched billing rhythm would simply wait.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <h3>Deliberately excluded</h3>
+        <div class="table-wrap static data-table"><table id="excluded-table"></table></div>
+      </div>
+      <div>
+        <h3>The features the model uses</h3>
+        <details class="data"><summary>Show all <span id="feature-count"></span> features</summary><div class="table-wrap static"><table id="features-table"></table></div></details>
+        <p class="prose" style="margin-top:14px" data-repo-block hidden>The full analysis, with every step and figure, is in the <a data-repo="/blob/main/notebooks/analysis.ipynb">analysis notebook</a>, and the code is on <a data-repo="">GitHub</a>.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap footer">
+  <div class="footer-inner">
+    <span>Built by Advika Kandikonda · Python, pandas, scikit-learn, Claude API</span>
+    <span>Synthetic data<span data-repo-block hidden> · <a data-repo="">Source on GitHub</a></span></span>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script src="data/site-data.js"></script>
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
