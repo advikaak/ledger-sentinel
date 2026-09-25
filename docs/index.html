@@ -8,23 +8,25 @@
   <meta property="og:title" content="Ledger Sentinel">
   <meta property="og:description" content="An AI agent that screens supplier invoices for fraud before they're paid, and shows the exact reasoning behind every decision.">
   <meta property="og:type" content="website">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232771ca'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header class="topbar">
   <div class="wrap topbar-inner">
-    <a class="brand" href="#top">
+    <a class="brand" href="#top" aria-label="Ledger Sentinel">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      Ledger Sentinel
+      <span class="brand-name">Ledger Sentinel</span>
     </a>
     <nav class="topnav" aria-label="Sections">
-      <a class="keep" href="#queue">Queue</a>
+      <a href="#queue">Try it</a>
+      <a href="#why">Why rules fail</a>
       <a href="#results">Results</a>
       <a href="#fairness">Fairness</a>
-      <a href="#method">Method</a>
-      <a class="keep" data-repo="" hidden>Code</a>
+      <a href="#drivers">Drivers</a>
+      <a href="#method">How it works</a>
+      <a data-repo="" hidden>Code</a>
     </nav>
   </div>
 </header>
@@ -35,18 +37,30 @@
     <p class="eyebrow">Accounts-payable fraud detection · data science project</p>
     <h1>Catch the invoices that shouldn't be paid, and show why.</h1>
     <p class="lede">Ledger Sentinel is an AI agent that screens a company's supplier payment run for duplicate payments, vendor impersonation and phantom vendors. It holds the risky invoices and lays out, for every decision, the exact rules it applied and the records behind them.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#queue">Try the agent</a>
+      <a class="btn" href="#results">See the results</a>
+    </div>
     <div class="kpis" id="kpis"></div>
     <p class="note">All data is synthetic: a simulated two-year ledger of <span data-fact="ledgerInvoices"></span> invoices with planted fraud, so every decision can be checked against the truth. Results are from the held-out test period, the last <span data-fact="testInvoices"></span> invoices, which the models never saw.</p>
   </section>
 
   <section class="wrap section" id="queue">
-    <h2>The payment queue</h2>
-    <p class="section-lede">Every invoice in the test period, highest risk first. Open one to see the decision, the rule chain the model followed, and the records it rests on. Invoices scoring <span data-fact="escalate"></span> or more are escalated and blocked; from <span data-fact="release"></span> they're held for an analyst; below that they're paid.</p>
+    <h2>Try the agent</h2>
+    <p class="section-lede">Below is a payment run the agent has already screened: the last <span data-fact="testInvoices"></span> invoices in the ledger, which the models never saw during training. You can open any of them and see exactly why the agent paid, held or blocked it.</p>
+
+    <ol class="howto" aria-label="How to use this section">
+      <li><b>Pick an invoice.</b> Start with one of the three examples, or click any row in the queue.</li>
+      <li><b>Read the decision.</b> The invoice panel shows what the agent did with it and how risky it scored the invoice.</li>
+      <li><b>Check the reasoning.</b> Each numbered line is one question the model asked. Below them are the records it used, and whether it got the invoice right.</li>
+    </ol>
+
+    <p class="row-label">Three examples worth opening first</p>
+    <div class="showcase" id="showcase"></div>
 
     <div class="queue-layout">
       <div>
-        <p class="row-label">Start with one of these:</p>
-        <div class="showcase" id="showcase"></div>
+        <p class="row-label" id="queue-list">The full queue, highest risk first</p>
         <div class="controls">
           <div id="chips" role="group" aria-label="Filter by decision"></div>
           <input class="search" id="search" type="search" placeholder="Search invoice or vendor" aria-label="Search invoice or vendor">
@@ -58,9 +72,9 @@
                 <th>Invoice</th>
                 <th class="hide-sm">Vendor</th>
                 <th class="right hide-sm">Amount</th>
-                <th>Risk</th>
+                <th title="The model's score, from 0 (clean) to 1 (fraud)">Risk</th>
                 <th>Decision</th>
-                <th class="hide-sm">Actual</th>
+                <th class="hide-sm" title="Whether the invoice really was fraud. Known because the data is synthetic.">Actual</th>
               </tr>
             </thead>
             <tbody id="queue-body"></tbody>
@@ -80,7 +94,7 @@
     </div>
     <div class="figure">
       <div class="figure-title">Text similarity can't separate fraud from routine billing; arrival timing catches much of it</div>
-      <div class="figure-sub">Share of invoices in each class, across the whole ledger.</div>
+      <div class="figure-sub">Share of invoices in each class, across the whole ledger. Hover or tap a chart for exact values.</div>
       <div id="legend-hist"></div>
       <div class="chart-grid">
         <div><div class="chart" id="chart-sim"></div></div>
@@ -92,13 +106,19 @@
 
   <section class="wrap section" id="results">
     <h2>Results</h2>
-    <p class="section-lede">Four models trained on the same features and the same labels, tuned on a validation period, then scored once on the test period (<span data-fact="testInvoices"></span> invoices, <span data-fact="testFraud"></span> fraudulent).</p>
+    <p class="section-lede"><strong>The agent catches <span data-fact="caughtCount"></span> of the <span data-fact="testFraud"></span> fraudulent invoices while sending <span data-fact="reviewed"></span> of the queue to an analyst. The keyword rule catches <span data-fact="rule"></span>.</strong> All four models below were trained on the same features and labels, tuned on a validation period, then scored once on the test period (<span data-fact="testInvoices"></span> invoices).</p>
 
     <div class="table-wrap static data-table"><table id="models-table"></table></div>
+    <dl class="defs">
+      <div><dt>Precision</dt><dd>Of the invoices a model flagged, the share that really were fraud.</dd></div>
+      <div><dt>Recall</dt><dd>Of all the fraudulent invoices, the share it caught.</dd></div>
+      <div><dt>F1</dt><dd>One score that balances precision and recall.</dd></div>
+      <div><dt>Average precision</dt><dd>How well it ranks fraud above clean invoices, across every possible cut-off.</dd></div>
+    </dl>
 
     <div class="figure">
       <div class="figure-title">Every model beats the keyword rule; the forest ranks invoices best</div>
-      <div class="figure-sub">Precision–recall on the test period. AP is average precision: the area under each curve.</div>
+      <div class="figure-sub">Precision–recall on the test period. AP is average precision: the area under each curve. Hover or tap to compare the models at any recall.</div>
       <div id="legend-pr"></div>
       <div class="chart" id="chart-pr"></div>
     </div>
@@ -124,11 +144,11 @@
 
   <section class="wrap section" id="fairness">
     <h2>Fairness audit</h2>
-    <p class="section-lede">Models learn from what past investigators <strong>wrote down</strong>, not from ground truth. In this ledger one region spent years under an enhanced-scrutiny policy, so <span data-fact="mislabelled"></span> of its clean invoices carry a fraud label they never earned. Two otherwise identical models were trained on those labels; one could also see the vendor's region.</p>
+    <p class="section-lede"><strong>Bias in past labels carries straight into the model, and hiding the sensitive column only partly fixes it.</strong> Models learn from what past investigators wrote down, not from ground truth. In this ledger one region spent years under an enhanced-scrutiny policy, so <span data-fact="mislabelled"></span> of its clean invoices carry a fraud label they never earned. Two otherwise identical models were trained on those labels; one could also see the vendor's region.</p>
 
     <div class="figure">
       <div class="figure-title">Letting the model see region makes it flag <span data-fact="naiveRate"></span> of clean invoices from <span data-fact="region"></span></div>
-      <div class="figure-sub">False-alarm rate on truly clean invoices, by vendor region, with 95% intervals.</div>
+      <div class="figure-sub">False-alarm rate on truly clean invoices, by vendor region, with 95% intervals. Hover or tap a bar for details.</div>
       <div id="legend-fair"></div>
       <div class="chart" id="chart-fair"></div>
       <details class="data"><summary>Show the numbers</summary><div class="table-wrap static"><table id="fairness-table"></table></div></details>
@@ -143,10 +163,10 @@
 
   <section class="wrap section" id="drivers">
     <h2>What drives the decisions</h2>
-    <p class="section-lede">Permutation importance on the test period: shuffle one feature and measure how much average precision drops. All three models lean hardest on arrival timing; past that, they disagree. Importance describes how a model used the data, not what causes fraud.</p>
+    <p class="section-lede">Each dot shows how much a model's ranking accuracy (average precision) drops when one input is scrambled on the test period. The further right, the more the model leans on that input. This shows how a model uses the data, not what causes fraud.</p>
     <div class="figure">
       <div class="figure-title">All three models lean on arrival timing; beyond it, they disagree</div>
-      <div class="figure-sub">Drop in average precision when one feature is shuffled (30 repeats).</div>
+      <div class="figure-sub">Drop in average precision when one feature is shuffled (30 repeats). Hover or tap a dot for its value.</div>
       <div id="legend-imp"></div>
       <div class="chart" id="chart-imp"></div>
     </div>
@@ -154,6 +174,7 @@
 
   <section class="wrap section" id="method">
     <h2>How it works</h2>
+    <p class="section-lede">What the agent does with each invoice, how the models were built and tested, and what the results can't tell you.</p>
     <div class="loop">
       <div><i>1</i><b>Perceive</b><span>Pull the invoice and the vendor's history: earlier invoices, bank-detail changes, purchase orders.</span></div>
       <div><i>2</i><b>Decide</b><span>Score it with an interpretable decision tree and recover the exact rule chain it followed.</span></div>

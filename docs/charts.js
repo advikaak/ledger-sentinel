@@ -2,8 +2,8 @@
  *
  * Every chart re-draws at its container's real width (so text stays readable on a
  * phone), takes its colours from CSS classes (so light and dark themes switch on
- * their own), and has a hover layer. Hover only adds detail: every number is also
- * in a table on the page.
+ * their own), and shows exact values on hover or tap. That only adds detail:
+ * every number is also in a table on the page.
  */
 (function () {
   "use strict";
@@ -158,6 +158,36 @@
     tip.hidden = true;
   }
 
+  // A mouse follows the pointer and the detail disappears when it leaves. A finger
+  // has no hover, so a tap shows the detail and it stays until the next tap
+  // elsewhere or a scroll.
+  let clearActive = null;
+
+  function interactive(target, onShow, onHide) {
+    const hide = () => {
+      onHide();
+      if (clearActive === hide) clearActive = null;
+    };
+    target.addEventListener("pointermove", (event) => {
+      if (event.pointerType !== "touch") onShow(event);
+    });
+    target.addEventListener("pointerdown", (event) => {
+      if (clearActive && clearActive !== hide) clearActive();
+      onShow(event);
+      clearActive = hide;
+    });
+    target.addEventListener("pointerleave", (event) => {
+      if (event.pointerType !== "touch") hide();
+    });
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (clearActive && !event.target.closest(".chart")) clearActive();
+  });
+  window.addEventListener("scroll", () => {
+    if (clearActive) clearActive();
+  }, { passive: true });
+
   // ---------------------------------------------------------------- legend
 
   function legend(container, items, kind) {
@@ -207,7 +237,7 @@
       }
 
       const hit = el("rect", { class: "hit", x: 0, y: 0, width: f.w, height: f.h }, f.g);
-      hit.addEventListener("pointermove", (event) => {
+      interactive(hit, (event) => {
         const px = event.clientX - hit.getBoundingClientRect().left;
         const i = Math.min(n - 1, Math.max(0, Math.floor((px / f.w) * n)));
         band.setAttribute("x", x(edges[i]));
@@ -222,8 +252,7 @@
           range,
           spec.series.map((s) => ({ series: s.series, label: s.name, value: pct(1)(s.values[i]) }))
         );
-      });
-      hit.addEventListener("pointerleave", () => {
+      }, () => {
         band.setAttribute("visibility", "hidden");
         hideTip();
       });
@@ -243,7 +272,7 @@
   function prChart(container, spec) {
     mount(container, (root, width) => {
       const height = Math.round(Math.min(420, Math.max(300, width * 0.62)));
-      const margin = { top: 12, right: 16, bottom: 46, left: 50 };
+      const margin = { top: 30, right: 16, bottom: 46, left: 50 };
       const f = frame(root, width, height, margin);
       const x = scale(0, 1.02, 0, f.w);
       const y = scale(0, 1.05, f.h, 0);
@@ -252,11 +281,18 @@
       yGrid(f.g, y, grid, f.w, pct(0));
       xGrid(f.g, x, grid, f.h, pct(0), true);
       axisTitle(f.g, f.w / 2, f.h + 38, "Recall: share of fraud caught");
-      const yTitle = text(f.g, 0, 0, "Precision: share of flags that are fraud", { class: "ax-title", "text-anchor": "middle" });
-      yTitle.setAttribute("transform", `translate(${-40},${f.h / 2}) rotate(-90)`);
+      // Horizontal, above the plot: a rotated title is longer than the axis on a phone.
+      text(f.g, -margin.left + 2, -16, "Precision: share of flags that are fraud", { class: "ax-title" });
 
       el("line", { class: "baseline", x1: 0, x2: f.w, y1: y(spec.baseline.y), y2: y(spec.baseline.y) }, f.g);
-      text(f.g, x(0.35), y(spec.baseline.y) - 6, spec.baseline.label, { class: "annot-muted" });
+      // The chance label sits between the reference dot on the left and the curves that
+      // drop to the baseline near full recall. On very narrow screens the long wording
+      // doesn't fit in that gap, so the short one is used.
+      const clearOf = Math.max(...spec.markers.filter((m) => !m.labelAt).map((m) => x(m.x) + 12));
+      const room = x(0.86) - clearOf;
+      const chance = textWidth(spec.baseline.label) <= room ? spec.baseline.label : spec.baseline.short;
+      const chanceX = Math.max(clearOf, Math.min(x(0.3), x(0.86) - textWidth(chance)));
+      text(f.g, chanceX, y(spec.baseline.y) - 6, chance, { class: "annot-muted" });
 
       for (const s of spec.series) {
         const p = s.points;
@@ -274,14 +310,15 @@
           el("line", { class: "leader", x1: lx + 4, y1: ly - 4, x2: cx - 6, y2: cy + 3 }, f.g);
           text(f.g, lx, ly + 4, m.label, { class: "annot", "text-anchor": "end" });
         } else {
-          text(f.g, cx + 10, cy + 4, m.label, { class: "annot" });
+          // Above and right of the dot, clear of the chance-level line just below it.
+          text(f.g, cx + 8, cy - 9, m.label, { class: "annot" });
         }
         el("circle", { class: m.series ? `dot-mark s-${m.series}` : "ref-dot", cx, cy, r: 5 }, f.g);
       }
 
       const cross = el("line", { class: "crosshair", y1: 0, y2: f.h, visibility: "hidden" }, f.g);
       const hit = el("rect", { class: "hit", x: 0, y: 0, width: f.w, height: f.h }, f.g);
-      hit.addEventListener("pointermove", (event) => {
+      interactive(hit, (event) => {
         const px = event.clientX - hit.getBoundingClientRect().left;
         const recall = Math.min(1, Math.max(0, x.invert(px)));
         cross.setAttribute("x1", x(recall));
@@ -292,8 +329,7 @@
           `At ${pct(0)(recall)} recall`,
           spec.series.map((s) => ({ series: s.series, label: s.name, value: pct(0)(precisionAt(s.points, recall)) }))
         );
-      });
-      hit.addEventListener("pointerleave", () => {
+      }, () => {
         cross.setAttribute("visibility", "hidden");
         hideTip();
       });
@@ -330,14 +366,12 @@
             text(f.g, Math.max(x(v.rate), x(v.hi)) + 6, y0 + thick / 2 + 4, pct(0)(v.rate), { class: "value-label" });
           }
           const hit = el("rect", { class: "hit", x: 0, y: y0 - 1, width: f.w, height: thick + 2 }, f.g);
-          hit.addEventListener("pointermove", (event) =>
+          interactive(hit, (event) =>
             showTip(event, `${row.label}: ${row.clean} clean invoices`, [
               { series: s.series, label: s.name, value: pct(1)(v.rate) },
               { label: "95% interval", value: `${pct(1)(v.lo)} to ${pct(1)(v.hi)}` },
               { label: "Wrongly flagged", value: `${v.flags} of ${row.clean}` },
-            ])
-          );
-          hit.addEventListener("pointerleave", hideTip);
+            ]), hideTip);
         });
       });
     });
@@ -378,10 +412,8 @@
           const cy = center + offsets[j];
           el("circle", { class: `dot-mark s-${s.series}`, cx, cy, r: 4.5 }, f.g);
           const hit = el("circle", { class: "hit", cx, cy, r: 10 }, f.g);
-          hit.addEventListener("pointermove", (event) =>
-            showTip(event, row.label, [{ series: s.series, label: s.name, value: row.values[s.key].toFixed(3) }])
-          );
-          hit.addEventListener("pointerleave", hideTip);
+          interactive(hit, (event) =>
+            showTip(event, row.label, [{ series: s.series, label: s.name, value: row.values[s.key].toFixed(3) }]), hideTip);
         });
       });
     });

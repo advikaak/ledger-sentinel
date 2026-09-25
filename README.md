@@ -15,6 +15,19 @@ The agent reviews an accounts-payable payment queue, holds the invoices that sho
 
 The full analysis, with code, tables and figures, is in [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb). The project website (in `docs/`, published with GitHub Pages) lets you open any invoice in the payment queue and see the decision, the model's exact rule chain, and the records behind it.
 
+## Quick start
+
+**See it.** Open `docs/index.html` in any browser (or the live site, once it's published). Click one of the three example invoices at the top of "Try the agent". The invoice panel shows what the agent decided, each question the model asked on the way, the records it relied on, and whether it got that invoice right. The menu at the top jumps to any other section (the results, the fairness audit, what drives the model's decisions, how it works) and marks the one you're reading.
+
+**Run it.** Install the dependencies and run the whole pipeline: data, training, evaluation, website data, notebook and tests. It takes about two and a half minutes.
+
+```bash
+pip install -r requirements-dev.txt
+./run_all.sh
+```
+
+**Publish it.** Push the repo to GitHub, then go to **Settings → Pages → Deploy from a branch → `main`, `/docs`**. The site appears at `https://<username>.github.io/ledger-sentinel/`.
+
 ---
 
 ## The problem
@@ -150,7 +163,7 @@ Every feature that *is* used describes something the invoice or the vendor **did
 
 ## Verified by tests
 
-`python3 -m pytest` runs 16 checks, including:
+`python3 -m pytest` runs 19 checks, including:
 
 - **No leakage.** An invoice's features are identical whether or not invoices and bank changes from its future are in the ledger. The test was confirmed to fail when a future-data leak is deliberately introduced.
 - **Honest split.** Train, validation and test are ordered in time and share no invoices.
@@ -159,6 +172,7 @@ Every feature that *is* used describes something the invoice or the vendor **did
 - **The agent's three demo decisions are correct** against ground truth.
 - **The LLM request contains the evidence and the instruction not to re-judge,** checked without a network call.
 - **The website agrees with the evaluation.** Its numbers match `out/evaluation.json`, every invoice in the queue opens, every decision follows the thresholds, and every number the page's text refers to is defined.
+- **The website tells visitors how to use it.** The top menu links every section in page order, the three-step guide is on the page, and each example invoice carries a description built from its own records.
 
 ---
 

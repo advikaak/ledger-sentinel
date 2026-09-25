@@ -79,3 +79,32 @@ def test_plain_english_rules():
 
     assert feature_value("days_since_bank_change", 9999.0) == "none on record"
     assert feature_value("amount_log", 9.7708) .startswith("$17,5")
+
+
+def test_visitors_are_told_how_to_use_the_page(site):
+    html = (DOCS / "index.html").read_text(encoding="utf-8")
+    howto = html[html.index('<ol class="howto"'): html.index("</ol>", html.index('<ol class="howto"'))]
+    assert howto.count("<li>") == 3
+    assert 'href="#queue">Try the agent</a>' in html
+    for example in site["showcase"]:
+        assert len(example["blurb"]) > 40 and any(ch.isdigit() for ch in example["blurb"]), example
+
+
+def test_both_dark_palettes_match():
+    css = (DOCS / "style.css").read_text(encoding="utf-8")
+
+    def tokens(selector):
+        start = css.index(selector + " {")
+        return re.findall(r"(--[\w-]+):\s*([^;]+);", css[start: css.index("}", start)])
+
+    follows_device = tokens(':root:not([data-theme="light"])')
+    pinned = tokens(':root[data-theme="dark"]')
+    assert len(follows_device) > 10 and follows_device == pinned
+
+
+def test_nav_links_every_section_in_page_order():
+    html = (DOCS / "index.html").read_text(encoding="utf-8")
+    nav = html[html.index('<nav class="topnav"'): html.index("</nav>")]
+    targets = re.findall(r'href="#([\w-]+)"', nav)
+    sections = re.findall(r'<section class="wrap section" id="([\w-]+)"', html)
+    assert targets == sections

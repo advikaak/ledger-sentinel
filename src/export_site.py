@@ -20,7 +20,7 @@ import pandas as pd
 import analysis as A
 import demo
 from agent import ESCALATE_ABOVE, RELEASE_BELOW, build_case, load_agent, route
-from describe import describe_case
+from describe import describe_case, plural
 from features import EXCLUDED_FEATURES, FEATURE_LABELS, FEATURE_NAMES, FEATURE_SHORT
 
 OUT = Path("docs/data/site-data.js")
@@ -31,6 +31,32 @@ SHOWCASE_BUTTONS = {
     "DUPLICATE PAYMENT": "Duplicate caught",
     "LOOKS GUILTY, ISN'T": "Looks guilty, isn't",
 }
+
+
+def showcase_blurb(label, case):
+    """One sentence telling a visitor what this example demonstrates, built from the
+    case's own records so the numbers can't drift from the data."""
+    evidence = case["evidence"]
+    amount = f"${case['amount']:,.0f}"
+    if label == "VENDOR IMPERSONATION":
+        change = evidence["bank_detail_change"]
+        usual = case["amount"] / evidence["vendor_profile"]["median_prior_amount"]
+        return (
+            f"The vendor's bank details changed {plural(change['days_before_this_invoice'], 'day')} "
+            f"before a {amount} invoice, {usual:.1f}× its usual amount."
+        )
+    match = evidence["closest_prior_invoice"]
+    if label == "DUPLICATE PAYMENT":
+        return (
+            f"A {amount} bill arriving {plural(match['days_before'], 'day')} after a near-identical "
+            f"one that was already paid."
+        )
+    if label == "LOOKS GUILTY, ISN'T":
+        return (
+            f"{match['similarity']:.0%} identical to a bill from {plural(match['days_before'], 'day')} "
+            f"earlier, but that bill was cancelled, so this one is a legitimate correction."
+        )
+    raise KeyError(label)
 
 
 def r(x, digits=4):
@@ -67,7 +93,7 @@ def main():
         })
 
     showcase = [
-        {"label": SHOWCASE_BUTTONS[label], "id": case["invoice_id"]}
+        {"label": SHOWCASE_BUTTONS[label], "id": case["invoice_id"], "blurb": showcase_blurb(label, case)}
         for label, case, _ in demo.pick_cases(test, model, ledger, changes)
     ]
 

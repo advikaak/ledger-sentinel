@@ -80,6 +80,7 @@
     ledgerInvoices: int(D.meta.ledger_invoices),
     testInvoices: int(D.meta.test_invoices),
     testFraud: int(D.meta.test_fraud),
+    caughtCount: int(D.routing.filter((r) => r.action !== "RELEASE").reduce((sum, r) => sum + r.fraudulent, 0)),
     escalate: D.meta.escalate_above.toFixed(2),
     release: D.meta.release_below.toFixed(2),
     legitAbove: pct(D.hist.similarity.legit_above),
@@ -195,7 +196,7 @@
       if (shown) visible += 1;
     }
     caption.textContent = visible
-      ? `${int(visible)} of ${int(D.queue.length)} invoices shown, highest risk first. Select a row to open it.`
+      ? `${int(visible)} of ${int(D.queue.length)} invoices shown. Select a row to open it. Risk runs from 0 (clean) to 1 (fraud).`
       : "No invoices match these filters.";
   }
 
@@ -213,7 +214,8 @@
   }
 
   const showcaseButtons = D.showcase.map((item) => {
-    const button = h("button", { class: "btn", type: "button", "aria-pressed": "false", "data-id": item.id, text: item.label });
+    const button = h("button", { class: "example", type: "button", "aria-pressed": "false", "data-id": item.id },
+      h("b", { text: item.label }), h("span", { text: item.blurb }));
     button.addEventListener("click", () => {
       resetFilters();
       select(item.id, { reveal: true, scrollPage: true });
@@ -233,6 +235,10 @@
     // On a phone the case sits below the table, so bring it into view.
     if (options.scrollPage && narrow.matches) caseEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  const RISK_HELP =
+    `Scores run from 0 (clean) to 1 (fraud). At ${facts.escalate} or above the agent blocks payment; ` +
+    `from ${facts.release} it holds the invoice for an analyst; below that it pays.`;
 
   function renderCase(id) {
     const c = D.cases[id];
@@ -265,16 +271,20 @@
         icon(c.action),
         h("div", {}, h("strong", { text: LABEL[c.action] }), h("span", { text: sentence(c.instruction) }))),
       h("div", { class: "risk" }, "Risk score", meter(c.risk, c.action), h("b", { class: "num", text: c.risk.toFixed(2) })),
+      h("p", { class: "help", text: RISK_HELP }),
       h("h3", { text: "The model's reasoning, in full" }),
+      h("p", { class: "help", text: "The decision tree asked these questions in this order. Each line shows what it measured on this invoice and the rule it applied; the grey code underneath is the same rule as the model stores it." }),
       steps,
       h("h3", { text: "The records behind it" }),
+      h("p", { class: "help", text: "What an analyst would open to confirm the decision." }),
       evidence,
-      verdict
+      verdict,
+      h("a", { class: "back-link", href: "#queue-list" }, h("span", { "aria-hidden": "true", text: "↑ " }), "Back to the list")
     );
   }
 
   applyFilter();
-  select(D.showcase[0].id, { reveal: true });
+  select(D.showcase[0].id, {});
 
   // ---------------------------------------------------------------- tables
 
@@ -384,7 +394,11 @@
       { x: D.operating.rule[0], y: D.operating.rule[1], label: "keyword rule" },
       { x: D.operating.tree[0], y: D.operating.tree[1], label: "shipped operating point", series: "tree", labelAt: [0.74, 0.47] },
     ],
-    baseline: { y: D.meta.base_rate, label: `chance level (${pct(D.meta.base_rate)} fraud)` },
+    baseline: {
+      y: D.meta.base_rate,
+      label: `chance level (${pct(D.meta.base_rate)} fraud)`,
+      short: `chance (${pct(D.meta.base_rate)})`,
+    },
   });
 
   const fairSeries = [
@@ -428,4 +442,43 @@
       block.hidden = false;
     });
   }
+
+  // ---------------------------------------------------------------- you are here
+
+  // The top nav marks the section in view: the last one whose top has come within 64px
+  // of the sticky bar (nav links land sections 15px below it). On a phone the nav
+  // scrolls sideways, so the marked link is also brought into view there (CSS decides
+  // whether that animates).
+  const topbar = document.querySelector(".topbar");
+  const topnav = document.querySelector(".topnav");
+  const navLinks = [...topnav.querySelectorAll('a[href^="#"]')];
+  const navTargets = navLinks.map((a) => {
+    const section = document.querySelector(a.getAttribute("href"));
+    if (!section) throw new Error(`Nav link ${a.getAttribute("href")} has no section`);
+    return section;
+  });
+  let marked = null;
+
+  function markSection() {
+    const line = topbar.getBoundingClientRect().bottom + 64;
+    const inView = navTargets.filter((section) => section.getBoundingClientRect().top <= line).pop();
+    const link = inView ? navLinks[navTargets.indexOf(inView)] : null;
+    if (link === marked) return;
+    if (marked) marked.removeAttribute("aria-current");
+    marked = link;
+    if (!link) return;
+    link.setAttribute("aria-current", "location");
+    topnav.scrollTo({ left: link.offsetLeft - (topnav.clientWidth - link.offsetWidth) / 2 });
+  }
+
+  let pending = false;
+  window.addEventListener("scroll", () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      markSection();
+    });
+  }, { passive: true });
+  markSection();
 })();
