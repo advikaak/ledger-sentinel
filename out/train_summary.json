@@ -1,0 +1,22 @@
+{
+  "importances": {
+    "gap_vs_vendor_cadence": 0.25913097275019825,
+    "vendor_age_days": 0.24023149817701742,
+    "amount_log": 0.08938652182662958,
+    "is_round_amount": 0.08313718923479567,
+    "max_similarity_to_prior": 0.07544106349447104,
+    "days_since_bank_change": 0.0739736391445546,
+    "closest_match_was_credited": 0.05381473439650785,
+    "amount_ratio_to_closest_match": 0.04166650672172299,
+    "days_since_closest_match": 0.033631766196156265,
+    "has_purchase_order": 0.025899445890027392,
+    "accounts_sharing_bank": 0.02183101955856833,
+    "amount_vs_vendor_median": 0.0018556426093506754,
+    "prior_invoice_count": 0.0,
+    "off_hours_submission": 0.0
+  },
+  "best_params": {
+    "max_depth": 6,
+    "min_samples_leaf": 4
+  }
+}

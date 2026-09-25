@@ -1,0 +1,70 @@
+{
+  "performance": {
+    "keyword rule (no ML)": {
+      "precision": 0.11627906976744186,
+      "recall": 0.16129032258064516,
+      "f1": 0.13513513513513514,
+      "flagged": 43,
+      "false_alarms": 38,
+      "missed": 26
+    },
+    "decision tree (shipped)": {
+      "precision": 0.56,
+      "recall": 0.9032258064516129,
+      "f1": 0.691358024691358,
+      "flagged": 50,
+      "false_alarms": 22,
+      "missed": 3,
+      "roc_auc": 0.9031704752946385
+    },
+    "logistic regression": {
+      "precision": 0.45901639344262296,
+      "recall": 0.9032258064516129,
+      "f1": 0.6086956521739131,
+      "flagged": 61,
+      "false_alarms": 33,
+      "missed": 3,
+      "roc_auc": 0.9860012172854535
+    },
+    "random forest": {
+      "precision": 0.896551724137931,
+      "recall": 0.8387096774193549,
+      "f1": 0.8666666666666667,
+      "flagged": 29,
+      "false_alarms": 3,
+      "missed": 5,
+      "roc_auc": 0.9954628451280916
+    },
+    "decision tree + region": {
+      "precision": 0.2978723404255319,
+      "recall": 0.9032258064516129,
+      "f1": 0.448,
+      "flagged": 94,
+      "false_alarms": 66,
+      "missed": 3,
+      "roc_auc": 0.889973994356222
+    }
+  },
+  "fairness": {
+    "East Asia": {
+      "shipped": 0.0,
+      "naive": 0.0
+    },
+    "Europe": {
+      "shipped": 0.023255813953488372,
+      "naive": 0.015503875968992248
+    },
+    "Latin America": {
+      "shipped": 0.008771929824561403,
+      "naive": 0.017543859649122806
+    },
+    "North America": {
+      "shipped": 0.024793388429752067,
+      "naive": 0.03305785123966942
+    },
+    "South Asia": {
+      "shipped": 0.1595744680851064,
+      "naive": 0.6170212765957447
+    }
+  }
+}

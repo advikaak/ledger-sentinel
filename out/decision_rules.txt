@@ -1,0 +1,94 @@
+|--- gap_vs_vendor_cadence <= 0.67
+|   |--- closest_match_was_credited <= 0.50
+|   |   |--- has_purchase_order <= 0.50
+|   |   |   |--- amount_vs_vendor_median <= 0.99
+|   |   |   |   |--- days_since_closest_match <= 107.00
+|   |   |   |   |   |--- amount_log <= 9.17
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- amount_log >  9.17
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |--- days_since_closest_match >  107.00
+|   |   |   |   |   |--- class: 0
+|   |   |   |--- amount_vs_vendor_median >  0.99
+|   |   |   |   |--- max_similarity_to_prior <= 0.96
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- max_similarity_to_prior >  0.96
+|   |   |   |   |   |--- max_similarity_to_prior <= 0.99
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- max_similarity_to_prior >  0.99
+|   |   |   |   |   |   |--- class: 1
+|   |   |--- has_purchase_order >  0.50
+|   |   |   |--- days_since_bank_change <= 10.50
+|   |   |   |   |--- gap_vs_vendor_cadence <= 0.17
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- gap_vs_vendor_cadence >  0.17
+|   |   |   |   |   |--- class: 1
+|   |   |   |--- days_since_bank_change >  10.50
+|   |   |   |   |--- amount_ratio_to_closest_match <= 0.87
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- amount_ratio_to_closest_match >  0.87
+|   |   |   |   |   |--- days_since_closest_match <= 78.00
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- days_since_closest_match >  78.00
+|   |   |   |   |   |   |--- class: 0
+|   |--- closest_match_was_credited >  0.50
+|   |   |--- amount_log <= 9.78
+|   |   |   |--- has_purchase_order <= 0.50
+|   |   |   |   |--- vendor_age_days <= 565.00
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- vendor_age_days >  565.00
+|   |   |   |   |   |--- class: 1
+|   |   |   |--- has_purchase_order >  0.50
+|   |   |   |   |--- class: 0
+|   |   |--- amount_log >  9.78
+|   |   |   |--- class: 0
+|--- gap_vs_vendor_cadence >  0.67
+|   |--- vendor_age_days <= 39.50
+|   |   |--- is_round_amount <= 0.50
+|   |   |   |--- vendor_age_days <= 9.50
+|   |   |   |   |--- amount_log <= 10.23
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- amount_log >  10.23
+|   |   |   |   |   |--- class: 1
+|   |   |   |--- vendor_age_days >  9.50
+|   |   |   |   |--- class: 0
+|   |   |--- is_round_amount >  0.50
+|   |   |   |--- amount_log <= 10.17
+|   |   |   |   |--- vendor_age_days <= 30.50
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- vendor_age_days >  30.50
+|   |   |   |   |   |--- amount_ratio_to_closest_match <= 0.28
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- amount_ratio_to_closest_match >  0.28
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |--- amount_log >  10.17
+|   |   |   |   |--- has_purchase_order <= 0.50
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- has_purchase_order >  0.50
+|   |   |   |   |   |--- class: 1
+|   |--- vendor_age_days >  39.50
+|   |   |--- days_since_bank_change <= 11.50
+|   |   |   |--- max_similarity_to_prior <= 0.95
+|   |   |   |   |--- max_similarity_to_prior <= 0.94
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- max_similarity_to_prior >  0.94
+|   |   |   |   |   |--- class: 1
+|   |   |   |--- max_similarity_to_prior >  0.95
+|   |   |   |   |--- class: 0
+|   |   |--- days_since_bank_change >  11.50
+|   |   |   |--- amount_log <= 7.99
+|   |   |   |   |--- accounts_sharing_bank <= 0.50
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- accounts_sharing_bank >  0.50
+|   |   |   |   |   |--- days_since_closest_match <= 36.00
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- days_since_closest_match >  36.00
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |--- amount_log >  7.99
+|   |   |   |   |--- max_similarity_to_prior <= 0.99
+|   |   |   |   |   |--- amount_ratio_to_closest_match <= 0.99
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- amount_ratio_to_closest_match >  0.99
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |--- max_similarity_to_prior >  0.99
+|   |   |   |   |   |--- class: 1
