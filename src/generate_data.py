@@ -34,6 +34,13 @@ REGIONS = ["North America", "Europe", "South Asia", "East Asia", "Latin America"
 OVER_SCRUTINIZED_REGION = "South Asia"
 HISTORICAL_FALSE_FLAG_RATE = 0.20
 
+# Two planted signals the model can exploit, exposed so src/robustness.py can weaken
+# them. CARELESS_SHARE: the share of duplicate-payment fraudsters who resubmit within
+# days with a near-identical amount (the timing tell). CREDIT_RECORDED_RATE: the share
+# of honest rebills whose credit note was actually recorded.
+CARELESS_SHARE = 0.65
+CREDIT_RECORDED_RATE = 0.84
+
 SERVICES = [
     "Managed logistics services",
     "Freight forwarding",
@@ -109,7 +116,7 @@ def build_vendors(rng):
     return vendors
 
 
-def legitimate_invoices(vendors, rng):
+def legitimate_invoices(vendors, rng, credit_rate=CREDIT_RECORDED_RATE):
     """
     Normal billing. Recurring vendors produce near-identical descriptions month
     after month with amounts that drift a few percent -- this is what makes naive
@@ -194,7 +201,7 @@ def legitimate_invoices(vendors, rng):
                 # The credit note against the original is what makes this rebill
                 # legitimate. About 1 in 6 never gets recorded, because AP teams are
                 # busy -- so this is a strong signal, not a perfect one.
-                if rng.random() < 0.84:
+                if rng.random() < credit_rate:
                     invoices[-1].cancelled = 1
                 # Corrected invoices genuinely do get issued as "-R" or "-A" against
                 # the original number, which is exactly what a resubmitted duplicate
@@ -225,7 +232,9 @@ def legitimate_invoices(vendors, rng):
     return invoices, bank_changes, counter
 
 
-def inject_duplicate_payments(invoices, vendors, rng, counter, n=55):
+def inject_duplicate_payments(
+    invoices, vendors, rng, counter, n=55, careless_share=CARELESS_SHARE, adaptive_rng=None
+):
     """
     Duplicate payment fraud: an already-paid invoice is resubmitted with a mutated
     invoice number and a tiny amount jitter so exact-match dedupe misses it.
@@ -246,9 +255,18 @@ def inject_duplicate_payments(invoices, vendors, rng, counter, n=55):
         counter += 1
         # Not every fraudster is careless. A third wait longer and jitter the amount
         # more, which drags them toward the legitimate-reissue pattern on purpose.
-        careless = rng.random() < 0.65
+        careless = rng.random() < careless_share
         gap = rng.randint(2, 11) if careless else rng.randint(12, 40)
         jitter = rng.uniform(0.995, 1.005) if careless else rng.uniform(0.96, 1.04)
+        # Robustness experiment only (adaptive_rng is None in the shipped pipeline).
+        # A fraudster who knows the model watches billing rhythm waits one full cycle
+        # for this vendor and lets the amount drift like an honest recurring invoice.
+        # The default draws above still happen, so every other invoice in the ledger
+        # is identical to the non-adaptive world built from the same seed.
+        if adaptive_rng is not None:
+            cadence = {v.vendor_id: v.cadence_days for v in vendors}[vid]
+            gap = max(2, cadence + adaptive_rng.randint(-4, 4))
+            jitter = adaptive_rng.uniform(0.92, 1.08)
         # Half resubmit under the original number with a suffix, half under a fresh
         # number. If all fraud used suffixes the suffix would BE the label, and the
         # model would learn our generator instead of the fraud.
@@ -413,14 +431,29 @@ def apply_historical_bias(invoices_df, vendors_df, rng):
     return invoices_df
 
 
-def build_ledger(seed=SEED):
-    """Build the whole synthetic world in memory. Same seed, same ledger, every time."""
+def build_ledger(
+    seed=SEED, careless_share=CARELESS_SHARE, credit_rate=CREDIT_RECORDED_RATE, adaptive=False
+):
+    """
+    Build the whole synthetic world in memory. Same seed, same ledger, every time.
+
+    The keyword arguments exist for src/robustness.py, which asks how the results move
+    when the planted signals are weaker or the fraudster adapts. The defaults build
+    the ledger the rest of the project uses.
+    """
     rng = random.Random(seed)
 
     vendors = build_vendors(rng)
-    invoices, bank_changes, counter = legitimate_invoices(vendors, rng)
+    invoices, bank_changes, counter = legitimate_invoices(vendors, rng, credit_rate)
 
-    dupes, counter = inject_duplicate_payments(invoices, vendors, rng, counter)
+    dupes, counter = inject_duplicate_payments(
+        invoices,
+        vendors,
+        rng,
+        counter,
+        careless_share=careless_share,
+        adaptive_rng=random.Random(seed + 1) if adaptive else None,
+    )
     swaps, counter = inject_bank_swap(invoices, vendors, rng, counter, bank_changes)
     phantom_vendors, phantom_invoices, counter = inject_phantom_vendors(rng, counter)
 

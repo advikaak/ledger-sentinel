@@ -2,6 +2,8 @@
 
 **An AI agent that screens supplier invoices for fraud before they're paid, and a data science study of what it takes to make one accurate, explainable, and fair.**
 
+> **In plain English.** Companies pay thousands of supplier invoices a month, and some are fraud: the same bill paid twice, a scammer pretending to be a real supplier, or a fake supplier. This project builds a program that reads each invoice before it is paid and decides to pay it, hold it, or block it. For every decision it shows the questions it asked and the records it used, so a person can check it. On the test data it caught about 9 in 10 fraudulent invoices while sending 12% of invoices to a person, and that slice held 93% of the fraudulent dollars ($1.05M of $1.13M). The data is simulated, so the numbers show the method works on patterns I planted, not how well it would do on a real company's invoices. The [stress tests](#stress-tests-how-far-do-the-numbers-move) below measure how much those numbers move when fraud is rarer, the planted patterns are weaker, or the fraudster adapts.
+
 The agent reviews an accounts-payable payment queue, holds the invoices that shouldn't be paid, and writes an evidence-cited case note for the analyst. Around it is a full modelling workflow: leakage-free feature engineering, a time-based train/validation/test split, cost-weighted tuning, bootstrap confidence intervals, permutation importance, and a fairness audit under historically biased labels.
 
 | Held-out test set: final 20% of the ledger by time (614 invoices, 31 fraudulent) | |
@@ -11,6 +13,8 @@ The agent reviews an accounts-payable payment queue, holds the invoices that sho
 | Agent routing | sends **12%** of invoices to review; that slice holds **93%** of fraudulent dollars |
 | Same model, also shown vendor region | flags **62%** of clean invoices from one region, vs **16%** without it |
 
+*One ledger, one seed. Rebuilding the whole world from ten seeds, the shipped tree's recall averages 87% (range 71–97%) and its precision 49% (range 22–68%); see [Stress tests](#stress-tests-how-far-do-the-numbers-move).*
+
 > **The data is synthetic** (see [Limitations](#limitations)). Every number measures whether the method recovers patterns planted in a simulated ledger. That shows the method works; it doesn't measure real-world accuracy.
 
 The full analysis, with code, tables and figures, is in [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb). The project website (in `docs/`, published with GitHub Pages) lets you open any invoice in the payment queue and see the decision, the model's exact rule chain, and the records behind it.
@@ -19,7 +23,7 @@ The full analysis, with code, tables and figures, is in [`notebooks/analysis.ipy
 
 **See it.** Open `docs/index.html` in any browser (or the live site, once it's published). Click one of the three example invoices at the top of "Try the agent". The invoice panel shows what the agent decided, each question the model asked on the way, the records it relied on, and whether it got that invoice right. The menu at the top jumps to any other section (the results, the fairness audit, what drives the model's decisions, how it works) and marks the one you're reading.
 
-**Run it.** Install the dependencies and run the whole pipeline: data, training, evaluation, website data, notebook and tests. It takes about two and a half minutes.
+**Run it.** Install the dependencies and run the whole pipeline: data, training, evaluation, website data, notebook and tests. It takes about six minutes (the stress tests are most of that).
 
 ```bash
 pip install -r requirements-dev.txt
@@ -136,6 +140,59 @@ The demo walks through three cases from the test set:
 
 ---
 
+## Stress tests: how far do the numbers move?
+
+The results above come from one simulated ledger at a 5% fraud rate, with signals I planted myself. `src/robustness.py` asks what happens when that is less kind. It uses the same features, the same shipped-model settings and the same time-ordered split. The shipped model and the numbers above are not changed. Output: `out/robustness.json`.
+
+**1. Ten rebuilt worlds.** Same method, ten different random seeds, each with its own sealed test period (22–34 fraud cases each).
+
+| model | recall, mean (range) | precision, mean (range) |
+|---|---|---|
+| keyword rule | 18% (9–25%) | 11% (pooled over all ten) |
+| decision tree (shipped settings) | 87% (71–97%) | 49% (22–68%) |
+| random forest | 76% (58–84%) | 94% (90–100%) |
+
+The shipped ledger's 90% recall sits toward the high end of that range, so quote the range, not the single number. The forest had higher precision in all ten worlds and equal or lower recall in all ten.
+
+**2. Rarer fraud.** Real fraud is far rarer than 5%. Holding each model's recall and its false-alarm rate on clean invoices fixed (pooled over the ten worlds: 281 fraud and 6,221 clean invoices), here is precision at lower fraud rates:
+
+| fraud rate | tree | forest | keyword rule |
+|---|---|---|---|
+| 5% (the simulated test sets average about 4%) | 50% | 94% | 13% |
+| 1% | 16% | 76% | 3% |
+| 0.5% | 9% | 61% | 1% |
+| 0.1% | 2% | 24% | 0% |
+
+At 1% fraud, about five of every six invoices the tree flags would be clean. The case for shipping the readable tree over the forest gets harder, not easier, at realistic rates. This is a calculation from measured rates, not a re-run; it assumes the model behaves the same on each invoice when fraud is rarer, and a model trained on rarer fraud would have fewer examples to learn from.
+
+**3. Weaker planted signals.** Five seeds each. I weakened the two signals I most worried were doing the work: how many duplicate-payment fraudsters resubmit quickly (65% as shipped), and how many honest rebills have their credit note recorded (84% as shipped).
+
+| setting | recall | precision | duplicate-payment recall |
+|---|---|---|---|
+| as shipped | 87% | 57% | 77% |
+| quick resubmitters 35% | 86% | 54% | 78% |
+| quick resubmitters 10% | 82% | 55% | 74% |
+| credit notes recorded 50% | 84% | 51% | 70% |
+| both weaker | 87% | 51% | 75% |
+
+Results moved less than I expected. That means the model is not relying on those two dials alone. I did not test other ways the world could be harder, such as noisier labels or messier descriptions.
+
+**4. A fraudster who waits.** The limitations list says a fraudster who knew the model watched billing rhythm would simply wait. Here I simulate it: duplicate-payment fraudsters resubmit after a full billing cycle for that vendor, with an amount that drifts like an honest recurring invoice. Everything else in the ledger is identical. Five seeds.
+
+| | duplicate-payment recall | overall recall | overall precision |
+|---|---|---|---|
+| ordinary fraudsters | 77% | 87% | 57% |
+| fraudsters who wait (model unchanged) | 56% | 76% | 54% |
+| fraudsters who wait (model retrained on them) | 61% | 79% | 55% |
+
+Waiting costs about 20 points of duplicate-payment recall, and retraining on the new behavior wins back only about 5. My reading, which I did not test, is that a duplicate timed and priced like an honest invoice leaves little for the model to separate beyond the credit-note control and the text match. Caveats: about 10 duplicates per seed, so single-seed numbers are noisy; and because waiting pushes duplicates later in the calendar, the attacked test window holds more of them (76 across five seeds vs 58).
+
+**5. Re-tuning the "hold" band.** The shipped thresholds (hold from 0.35, escalate from 0.75) were set by policy, and on the shipped model the hold band caught no fraud. I tuned both thresholds on validation cost instead. The costs are my assumptions, not measurements: a missed fraud costs 6, a hold 1 and an escalation 2. The tuned thresholds (hold from 0.75, escalate from 0.95) did worse on the sealed test period: cost 99 against 88, and they released nine fraudulent invoices worth about $465k where the policy thresholds released one worth about $42k. The validation slice has only 24 fraud cases, which is too few to set two thresholds reliably. So the policy thresholds stay, and the loose end is closed with evidence rather than a rewrite. One more observation: with a model fit on the training period only, the hold band at the shipped thresholds does catch fraud (8 of 30 invoices). The empty hold band in the shipped model is a property of that one fit, not of the middle band.
+
+**6. Do the case notes stick to the evidence?** `src/grounding.py` checks that every invoice number, vendor number, account suffix and figure in a note appears in the case it was written from, allowing for rounding. Six tests check the checker against notes written by hand from a real case: a faithful note passes, and an invented invoice number, amount, account or day count is caught. I have not run it on live notes from Claude. It checks that the facts are in the evidence, not that a note is well written or points the analyst to the best first check.
+
+---
+
 ## Excluded features, and why
 
 Listed in `src/features.py` as part of the deliverable, not as an omission:
@@ -163,7 +220,7 @@ Every feature that *is* used describes something the invoice or the vendor **did
 
 ## Verified by tests
 
-`python3 -m pytest` runs 19 checks, including:
+`python3 -m pytest` runs 29 checks, including:
 
 - **No leakage.** An invoice's features are identical whether or not invoices and bank changes from its future are in the ledger. The test was confirmed to fail when a future-data leak is deliberately introduced.
 - **Honest split.** Train, validation and test are ordered in time and share no invoices.
@@ -172,6 +229,8 @@ Every feature that *is* used describes something the invoice or the vendor **did
 - **The agent's three demo decisions are correct** against ground truth.
 - **The LLM request contains the evidence and the instruction not to re-judge,** checked without a network call.
 - **The website agrees with the evaluation.** Its numbers match `out/evaluation.json`, every invoice in the queue opens, every decision follows the thresholds, and every number the page's text refers to is defined.
+- **The stress-test machinery is correct.** Default settings build the shipped ledger exactly; the adaptive-fraudster option changes only the duplicate-payment invoices; the rare-fraud precision formula reproduces the observed precision at the observed rate.
+- **The grounding check catches invented facts** and accepts rounding (six tests, no network call).
 - **The website tells visitors how to use it.** The top menu links every section in page order, the three-step guide is on the page, and each example invoice carries a description built from its own records.
 
 ---
@@ -179,10 +238,11 @@ Every feature that *is* used describes something the invoice or the vendor **did
 ## Limitations
 
 - **Synthetic data.** Real AP ledgers are confidential and labelled fraud is rarer still. Results show the method works on planted patterns, not real-world accuracy.
-- **Inflated fraud rate** (~5%, versus well under 1% in practice), so there are enough positives to learn from. Real class imbalance would be much harsher.
-- **Small test set.** 31 fraud cases means wide intervals.
+- **Inflated fraud rate** (~5%, versus well under 1% in practice), so there are enough positives to learn from. Real class imbalance would be much harsher; the stress tests above put the tree's precision near 16% at a 1% fraud rate, as a calculation, not a re-run.
+- **Small test set.** 31 fraud cases means wide intervals. Across ten rebuilt ledgers, the tree's recall ranged from 71% to 97%.
 - **Three schemes, cleanly separated.** Real fraud blends, mutates, and adapts once it knows what's being detected.
-- **No adversary.** A fraudster who knew the model watched billing rhythm would simply wait. A real deployment would need drift monitoring.
+- **Only one adversary was tested.** A fraudster who waits a full billing cycle cost the tree about 20 points of duplicate-payment recall, and retraining recovered about 5. Other evasions, and bank-swap or phantom-vendor fraudsters who adapt, were not tested. A real deployment would need drift monitoring.
+- **Case notes are checked for facts, not quality.** The grounding check has not been run on live notes.
 
 ---
 
@@ -199,7 +259,7 @@ pip install -r requirements-dev.txt
 ./run_all.sh
 ```
 
-About two and a half minutes end to end. Claude's case notes are part of the command-line agent, not the website. To see them, set an API key first:
+About six minutes end to end. Claude's case notes are part of the command-line agent, not the website. To see them, set an API key first:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -212,6 +272,7 @@ Individual steps:
 python3 src/generate_data.py    # build the synthetic ledger
 python3 src/train.py            # tune on validation, fit, save
 python3 src/evaluate.py         # performance, fairness, interpretability report
+python3 src/robustness.py       # stress tests -> out/robustness.json (about 3 minutes)
 python3 src/export_site.py      # write the website's data
 python3 src/demo.py --no-llm    # the agent, without network calls
 python3 -m pytest -q            # the checks above
@@ -232,6 +293,8 @@ src/
   train.py           validation-tuned training: shipped model + baselines
   evaluate.py        performance, fairness, interpretability, scored separately
   analysis.py        bootstrap intervals, permutation importance, routing analysis
+  robustness.py      ten seeds, rarer fraud, weaker signals, adaptive fraudster, hold band
+  grounding.py       checks that a case note's facts are in its evidence
   figstyle.py        one colour-blind-checked visual system for every figure
   agent.py           perceive / decide / act / explain
   demo.py            three cases, live
@@ -241,11 +304,35 @@ notebooks/
   analysis.ipynb     the full analysis, executed, with figures
 tests/
   test_pipeline.py   leakage, split, exclusion, reproducibility, agent checks
+  test_robustness.py the stress-test machinery
+  test_grounding.py  the grounding check
   test_site.py       the website's data and wording
 out/
   figures/           charts used in this README
   decision_rules.txt the shipped tree's complete rule set
+  robustness.json    every number in the stress-test section
 ```
+
+---
+
+## Related work, and what this adds
+
+None of the pieces here are new. Commercial accounts-payable tools already do near-duplicate matching and vendor checks (for example [Hypatos](https://hypatos.ai/knowledge-base/ai-duplicate-payment-detection-invoice-fraud) and [Spendflo](https://www.spendflo.com/agents/ai-invoice-fraud-detection-agent)). Attacks that evade fraud models on tabular data are published research ([Cartella et al., 2021](https://arxiv.org/pdf/2101.08030)), as is the way a deployed model can skew the labels it later trains on ([Pombal et al., 2022](https://arxiv.org/pdf/2206.13183)). LLMs have also been applied to fraud detection in accounting records ([AuditCopilot](https://arxiv.org/pdf/2512.02726)). I read search summaries of these, not the full papers, so treat them as pointers. What this project adds is a small, fully reproducible package that puts those questions together on one ledger: a leakage-tested model, a fairness audit under biased labels, a simple adaptive adversary, and numbers reported with their uncertainty.
+
+---
+
+## Glossary
+
+- **Held-out test set.** Invoices the model never saw while being built, used once at the end to see how it does on new cases.
+- **Precision.** Of the invoices flagged, the share that really were fraud.
+- **Recall.** Of all fraudulent invoices, the share that were caught.
+- **Time-based split.** Training on earlier invoices and testing on later ones, like real use, instead of shuffling them together.
+- **Leakage.** A model accidentally seeing information from the future, or the answer itself, during training. It looks great in testing and fails in real use. "Point-in-time" features are built to prevent it.
+- **Bootstrap confidence interval.** A range showing how much a number would wobble if the test set had been a slightly different draw. Wide ranges mean few cases.
+- **Cost-weighted.** Training the model to treat a missed fraud as worse than a false alarm, because it is.
+- **Permutation importance.** Shuffle one input and see how much the model gets worse. A big drop means the model leaned on it.
+- **Wilson interval.** A confidence interval for a rate that behaves sensibly when the counts are small or near zero.
+- **Synthetic data.** Simulated data where I planted the fraud, so I know the right answers.
 
 ---
 
